@@ -1,4 +1,19 @@
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    networks:
+      - appnet
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/bookcase-realm.json:/opt/keycloak/data/import/bookcase-realm.json:ro
+
   postgres:
     image: postgres:16-alpine
     container_name: postgres
@@ -19,17 +34,10 @@ services:
       - db_password
       - db_user
 
-  frontend:
-    image: ghcr.io/nataliacharz/library-frontend:latest
-    depends_on:
-      - backend
-    networks:
-      - appnet
-
   backend:
+    build:
+      context: ../LibraryApp
     image: ghcr.io/nataliacharz/library-backend:latest
-    depends_on:
-      - postgres
     networks:
       - appnet
     healthcheck:
@@ -37,6 +45,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  frontend:
+    image: ghcr.io/nataliacharz/library-frontend:latest
+    depends_on:
+      - backend
+    networks:
+      - appnet
 
   nginx:
     image: nginx:alpine
@@ -73,3 +88,4 @@ secrets:
 
 volumes:
   postgres_data:
+  keycloak_data:
