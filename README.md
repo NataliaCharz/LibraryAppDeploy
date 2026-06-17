@@ -58,7 +58,7 @@ Aplikacja webowa do zarządzania biblioteką osobistą, zabezpieczona standardem
 ## Uruchomienie
 
 ```bash
-git clone <adres-repo>
+git clone https://github.com/NataliaCharz/LibraryAppDeploy.git
 cd LibraryAppDeploy
 docker compose up -d
 ```
