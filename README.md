@@ -1,28 +1,57 @@
 # Library App — OAuth 2.0 z Keycloak
 
+**Autor:** Natalia Charzyńska  
+**Grupa:** 3
+
 Aplikacja webowa do zarządzania biblioteką osobistą, zabezpieczona standardem **OAuth 2.0 + PKCE** z wykorzystaniem Keycloak jako Authorization Servera.
 
 ---
 
-## Spełnione wymagania projektowe
+## Wymagania projektowe
 
 | Wymaganie | Realizacja |
 |-----------|------------|
 | Backend zabezpieczony OAuth 2.0 | Spring Boot jako Resource Server — waliduje JWT wystawione przez Keycloak |
-| Min. 1 endpoint z rolami | `/api/admin/**` — tylko `ADMIN` &nbsp;/&nbsp; `/api/user/**` — tylko `USER` |
-| Min. 4 zabezpieczone endpointy | `/api/books/**`, `/api/authors/**`, `/api/user/**`, `/api/admin/**`, `/api/contact/**` |
+| Min. 1 endpoint uwzględniający role | `/api/contact/send` — tylko `USER` / `/api/contact/**` — tylko `ADMIN` |
+| Min. 4 zabezpieczone endpointy | `/api/books/**`, `/api/authors/**`, `/api/user/**`, `/api/contact/**` |
 | Min. 1 niezabezpieczony endpoint | `/actuator/health`, `/api/library/**`, `/v3/api-docs/**` |
-| Frontend korzystający z backendu | Next.js — komunikacja przez REST z Bearer tokenem |
+| Frontend korzystający z backendu | Next.js — komunikacja przez REST z Bearer tokenem w nagłówku |
 | Baza danych | PostgreSQL 16 |
-| Skonfigurowany Authorization Server | Keycloak 26, realm `bookcase` |
+| Skonfigurowany Authorization Server | Keycloak 26, realm `bookcase`, klient `bookcase-app` |
 | PKCE włączone | S256, Authorization Code Flow |
 
 ---
 
-## Wymagania wstępne
+## Funkcjonalności aplikacji
 
-- **Docker** i **Docker Compose** v2+
-- Wolne porty: `80`, `8081`
+### Dostępne bez logowania
+
+| Funkcja | Opis |
+|---------|------|
+| Przeglądanie biblioteki | Wyszukiwanie książek po nazwisku autora przez zewnętrzne API OpenLibrary |
+| Rejestracja | Przekierowanie na stronę rejestracji Keycloak — tworzy konto z rolą USER |
+| Logowanie | Przekierowanie na stronę logowania Keycloak (OAuth 2.0 + PKCE S256) |
+
+### Panel użytkownika (rola USER)
+
+| Funkcja | Opis |
+|---------|------|
+| Przeglądanie książek | Lista wszystkich książek w systemie z wyszukiwarką po tytule |
+| Lista lektur | Dodawanie/usuwanie książek do osobistej listy przeczytanych |
+| Lista życzeń | Dodawanie/usuwanie książek do wishlisty |
+| Przeglądanie autorów | Lista wszystkich autorów z ich szczegółami |
+| Szczegóły książki | Podgląd informacji o wybranej książce |
+| Kontakt z adminem | Formularz wysyłania wiadomości do administratora (imię, e-mail, treść) |
+
+### Panel administratora (rola ADMIN)
+
+| Funkcja | Opis |
+|---------|------|
+| Dodawanie książek | Formularz dodawania nowej książki do systemu |
+| Dodawanie autorów | Formularz dodawania nowego autora |
+| Przeglądanie książek i autorów | Dostęp do pełnej listy |
+| Wiadomości od użytkowników | Podgląd i usuwanie wiadomości kontaktowych |
+| Powiadomienia SSE | Powiadomienia w czasie rzeczywistym o nowych wiadomościach (Server-Sent Events) |
 
 ---
 
@@ -34,27 +63,7 @@ cd LibraryAppDeploy
 docker compose up -d
 ```
 
-Pierwsze uruchomienie pobiera obrazy i zajmuje ~2–3 minuty. Keycloak potrzebuje ~60 sekund na pełny start.
-
-### Sprawdzenie stanu kontenerów
-
-```bash
-docker compose ps
-```
-
-Oczekiwany wynik — wszystkie serwisy `running`:
-
-```
-NAME        STATUS
-keycloak    running
-postgres    running (healthy)
-backend     running (healthy)
-frontend    running
-nginx       running
-redis       running (healthy)
-```
-
----
+Keycloak automatycznie importuje realm `bookcase` z pliku `keycloak/bookcase-realm.json` (konta testowe, role, konfiguracja PKCE).
 
 ## Adresy
 
@@ -62,8 +71,6 @@ redis       running (healthy)
 |--------|-----|
 | **Aplikacja (frontend)** | http://localhost |
 | **Keycloak Admin Console** | http://localhost:8081 |
-| **Swagger UI** | http://localhost/swagger-ui/index.html |
-| **Health check** | http://localhost/actuator/health |
 
 ---
 
@@ -86,117 +93,42 @@ redis       running (healthy)
 
 ---
 
-## Jak sprawdzić projekt
-
-### 1. Logowanie — weryfikacja PKCE w przeglądarce
-
-1. Otwórz http://localhost
-2. Otwórz DevTools → zakładka **Network**
-3. Kliknij **Login** w menu bocznym
-4. Obserwuj pierwszy request do Keycloak — zawiera:
-   - `response_type=code` — Authorization Code Flow
-   - `code_challenge=<hash>` — wygenerowany przez frontend
-   - `code_challenge_method=S256` — SHA-256
-5. Po wpisaniu hasła na stronie Keycloak następuje redirect do `/callback?code=<jednorazowy_kod>`
-6. Ostatni request to wymiana kodu na token — zawiera `code_verifier` (oryginalny losowy ciąg)
-7. Zaloguj się jako `user1` / `user1`
-
-### 2. Weryfikacja tokena JWT
-
-Po zalogowaniu otwórz DevTools → **Application** → **Local Storage** → `http://localhost`:
-
-- Skopiuj wartość klucza `token`
-- Wklej na https://jwt.io
-
-W sekcji **Payload** widoczne m.in.:
-
-```json
-{
-  "preferred_username": "user1",
-  "realm_access": {
-    "roles": ["USER", "offline_access", "uma_authorization"]
-  },
-  "iss": "http://keycloak:8080/realms/bookcase"
-}
-```
-
-### 3. Weryfikacja zabezpieczenia endpointów przez curl
-
-#### Niezabezpieczone — 200 bez tokena:
-
-```bash
-curl -s http://localhost/actuator/health
-curl -s "http://localhost/api/library/author/Tolkien"
-```
-
-#### Zabezpieczone — 401 bez tokena:
-
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost/api/books/
-# → 401
-
-curl -s -o /dev/null -w "%{http_code}" http://localhost/api/user/books
-# → 401
-```
-
-#### Rola USER — dostęp do `/api/books/`, brak do `/api/admin/`:
-
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8081/realms/bookcase/protocol/openid-connect/token" \
-  -d "grant_type=password&client_id=bookcase-app&username=user1&password=user1" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN" http://localhost/api/books/
-# → 200
-
-curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN" http://localhost/api/admin/
-# → 403
-```
-
-#### Rola ADMIN — dostęp do `/api/admin/`:
-
-```bash
-ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8081/realms/bookcase/protocol/openid-connect/token" \
-  -d "grant_type=password&client_id=bookcase-app&username=admin&password=admin" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost/api/admin/
-# → 200
-```
-
-### 4. Konfiguracja Keycloak
-
-Otwórz http://localhost:8081 → zaloguj jako `admin`/`admin` → przejdź do realm `bookcase`:
-
-- **Clients** → `bookcase-app` → zakładka **Settings**: `publicClient: true`, `Standard flow: ON`
-- **Clients** → `bookcase-app` → zakładka **Advanced**: `PKCE Code Challenge Method: S256`
-- **Realm roles**: widoczne role `USER` i `ADMIN`
-
-### 5. Swagger UI
-
-http://localhost/swagger-ui/index.html — dostępny bez logowania (niezabezpieczony endpoint).
-
----
-
-## Architektura
+## Diagram komunikacji w systemie
 
 ```
-Przeglądarka
-     │
-     ▼
-  Nginx :80  ─── reverse proxy ──────────────────────
-  │                                                   │
-  │  /          → frontend:3000 (Next.js)             │
-  │  /api/      → backend:8080 (Spring Boot)          │
-  └───────────────────────────────────────────────────┘
-                       │
-          ┌────────────┼───────────┐
-          ▼            ▼           ▼
-     PostgreSQL      Redis     Keycloak :8081
-     (dane app)     (cache)    Authorization Server
-                               realm: bookcase
-                               client: bookcase-app
-                               PKCE S256
+Przeglądarka (localhost)
+        │
+        ▼
+   Nginx :80  ──────────── reverse proxy ─────────────────────
+        │                                                      │
+        │  /                 frontend:3000  (Next.js)          │
+        │  /api/*            backend:8080   (Spring Boot)      │
+        └──────────────────────────────────────────────────────┘
+                                │
+               ┌────────────────┼──────────────┐
+               ▼                ▼              ▼
+          PostgreSQL           Redis        Keycloak :8081
+          (dane aplikacji)    (cache)       Authorization Server
+                                            realm: bookcase
+                                            client: bookcase-app
+                                            PKCE S256
+
+Przepływ autoryzacji (OAuth 2.0 Authorization Code + PKCE):
+
+  Przeglądarka                Keycloak               Backend
+       │                         │                      │
+       │─── 1. Klik Login ──────>│                      │
+       │    (z code_challenge)   │                      │
+       │<── 2. Formularz logowania                      │
+       │─── 3. Login/hasło ─────>│                      │
+       │<── 4. /callback?code=X ─│                      │
+       │─── 5. POST /token ─────>│                      │
+       │    (z code_verifier)    │                      │
+       │<── 6. access_token ─────│                      │
+       │                         │                      │
+       │─── 7. GET /api/books ───────────────────────>  │
+       │       Bearer: <JWT>     │     walidacja JWT    │
+       │<── 8. dane ─────────────────────────────────── │
 ```
 
 ---
@@ -205,55 +137,33 @@ Przeglądarka
 
 PKCE (Proof Key for Code Exchange) to rozszerzenie OAuth 2.0 dla aplikacji, które nie mogą bezpiecznie przechowywać client secret (np. SPA, aplikacje mobilne).
 
-```
-Frontend (przeglądarka)              Keycloak                Backend
-        │                               │                        │
-        │ 1. Generuje code_verifier     │                        │
-        │    (64 losowe bajty)          │                        │
-        │                               │                        │
-        │ 2. code_challenge =           │                        │
-        │    BASE64URL(SHA256(verifier))│                        │
-        │                               │                        │
-        │──── 3. GET /auth?             │                        │
-        │    response_type=code         │                        │
-        │    code_challenge=<hash> ────>│                        │
-        │    code_challenge_method=S256 │                        │
-        │                               │                        │
-        │<─── 4. Strona logowania ──────│                        │
-        │                               │                        │
-        │──── 5. Login/hasło ──────────>│                        │
-        │                               │                        │
-        │<─── 6. redirect /callback     │                        │
-        │         ?code=<jednorazowy> ──│                        │
-        │                               │                        │
-        │──── 7. POST /token            │                        │
-        │    code=<kod>                 │                        │
-        │    code_verifier=<oryginał> ─>│                        │
-        │    (Keycloak weryfikuje:       │                        │
-        │     SHA256(verifier)==hash)    │                        │
-        │<─── 8. access_token ──────────│                        │
-        │                               │                        │
-        │──────────── 9. GET /api/books/ + Bearer token ────────>│
-        │                               │   (walidacja podpisu   │
-        │<──────────────────────────────│────JWT lokalnie) ──────│
-```
+Bez niego przechwycenie kodu autoryzacyjnego wystarczyłoby do uzyskania tokenu. PKCE wiąże kod z konkretną sesją przeglądarki przez kryptograficzny dowód.
 
-**Dlaczego PKCE chroni:** atakujący może przechwycić `code` z URL (przez logi, referrer header). Bez PKCE mógłby go wymienić na token. Z PKCE potrzebuje `code_verifier` — losowego ciągu wygenerowanego w przeglądarce użytkownika, który **nigdy nie jest przesyłany przez URL**. Przechwycony `code` bez `code_verifier` jest bezużyteczny.
+**Przebieg:**
+
+1. Frontend generuje losowy `code_verifier` (64 bajty)
+2. Oblicza `code_challenge = BASE64URL(SHA256(code_verifier))`
+3. Wysyła `code_challenge` do Keycloak przy żądaniu autoryzacji
+4. Keycloak zapamiętuje `code_challenge` i wydaje jednorazowy kod
+5. Frontend wysyła kod + oryginalny `code_verifier` po token
+6. Keycloak weryfikuje: `SHA256(verifier) == challenge` → wydaje `access_token`
+
+Nawet jeśli ktoś przechwyci kod autoryzacyjny, bez `code_verifier` (który nigdy nie opuszcza przeglądarki) nie może wymienić go na token.
+
+**Implementacja w projekcie:** `app/auth/pkce.js` — funkcje `generateCodeVerifier()`, `generateCodeChallenge()`, `buildAuthUrl()`.
 
 ---
 
-## Reset aplikacji
+## Spring Security — konfiguracja Resource Server
 
-```bash
-# Zatrzymanie — dane zostają w volumes
-docker compose down
+Backend (`SecurityConfig.java`) działa jako OAuth 2.0 Resource Server. Nie wystawia tokenów — tylko je weryfikuje. Walidacja JWT odbywa się przez pobranie kluczy publicznych Keycloak z endpointu JWK:
 
-# Pełny reset — usuwa volumes (PostgreSQL, Keycloak, Redis)
-docker compose down -v
-
-# Następny start automatycznie odtworzy Keycloak z keycloak/bookcase-realm.json
-docker compose up -d
+```yaml
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri:
+  http://keycloak:8080/realms/bookcase/protocol/openid-connect/certs
 ```
+
+Role użytkownika są wyodrębniane z claimu `realm_access.roles` w JWT i mapowane na Spring Security authorities (`ADMIN`, `USER`).
 
 ---
 
@@ -280,7 +190,7 @@ LibraryAppDeploy/
 |---------|-------------|--------|
 | Authorization Server | Keycloak | 26 |
 | Backend | Spring Boot + Spring Security OAuth2 Resource Server | 3.5 / Java 21 |
-| Frontend | Next.js + React | 16 / 19 |
+| Frontend | Next.js + React | 15 / 19 |
 | Baza danych | PostgreSQL | 16 |
 | Cache | Redis | 7 |
 | Reverse Proxy | Nginx | Alpine |
