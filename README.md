@@ -60,6 +60,7 @@ Aplikacja webowa do zarządzania biblioteką osobistą, zabezpieczona standardem
 ```bash
 git clone https://github.com/NataliaCharz/LibraryAppDeploy.git
 cd LibraryAppDeploy
+cp .env.example .env          # ustaw własne hasło KEYCLOAK_ADMIN_PASSWORD
 docker compose up -d
 ```
 
@@ -87,9 +88,17 @@ Keycloak automatycznie importuje realm `bookcase` z pliku `keycloak/bookcase-rea
 
 ### Keycloak Admin Console
 
-| Login | Hasło |
-|-------|-------|
-| `admin` | `admin` |
+Credentiale są pobierane z pliku `.env` (nie commitowanego do repozytorium).  
+Skopiuj `.env.example` jako `.env` i ustaw własne wartości przed uruchomieniem:
+
+```bash
+cp .env.example .env
+```
+
+| Zmienna | Domyślna wartość w `.env.example` |
+|---------|----------------------------------|
+| `KEYCLOAK_ADMIN` | `admin` |
+| `KEYCLOAK_ADMIN_PASSWORD` | `change_me` |
 
 ---
 
@@ -172,6 +181,8 @@ Role użytkownika są wyodrębniane z claimu `realm_access.roles` w JWT i mapowa
 ```
 LibraryAppDeploy/
 ├── docker-compose.yaml          # Orchestracja serwisów
+├── .env.example                 # Szablon zmiennych środowiskowych (commitowany)
+├── .env                         # Lokalne credentiale (NIE commitowany, w .gitignore)
 ├── nginx/
 │   └── nginx.conf               # Reverse proxy, wsparcie SSE
 ├── keycloak/
